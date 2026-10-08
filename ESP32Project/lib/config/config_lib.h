@@ -6,5 +6,6 @@
 #include "math.h"
 
 #define ENABLE_GPIO
+#define ENABLE_ADC
 
 #endif // CONFIG_LIB_H_

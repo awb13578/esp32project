@@ -20,6 +20,8 @@ typedef struct {
     gpio_hw_cfg_t hw_cfg;
 } gpio_ctx_t;
 
+extern gpio_ctx_t gpio_inst[GPIO_ID_MAX]; // khai báo mảng chưa các instance của GPIO
+
 void drv_gpio_init(gpio_id_e id, uint8_t pin, uint8_t mode); 
 //cấu hình chân nào là OUTPUT hay INPUT, nếu muốn thay đổi thì thêm id trong enum gpio_id_e
 void drv_gpio_set_pin(gpio_id_e id); //set chân HIGH
