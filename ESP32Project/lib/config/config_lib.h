@@ -7,5 +7,6 @@
 
 #define ENABLE_GPIO
 #define ENABLE_ADC
+#define ENABLE_I2C
 
 #endif // CONFIG_LIB_H_
