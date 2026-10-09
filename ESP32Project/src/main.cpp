@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "drv_gpio.h"
+#include "drv_i2c.h"
 
 // put function declarations here:
 int myFunction(int, int);
