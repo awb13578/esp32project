@@ -10,7 +10,7 @@ typedef enum {
 
 typedef enum {
     ADC_ID_A,
-    ADC_ID_MAX
+    ADC_ID_MAX,
 } adc_id_e;
 
 typedef enum {
@@ -18,7 +18,6 @@ typedef enum {
     PWM_ID_PUMP1,
     PWM_ID_PUMP2,
     PWM_ID_MAX,
-    PWM_ID_0 = PWM_ID_MOTOR,
 } pwm_id_e;
 
 #endif // DRV_CONFIG_H_
