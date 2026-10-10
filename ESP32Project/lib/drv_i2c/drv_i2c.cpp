@@ -14,14 +14,16 @@ void drv_i2c_init(i2c_id_e id, uint8_t sda_pin, uint8_t scl_pin) {
 }
 
 i2c_status_e drv_i2c_send(i2c_id_e id, uint8_t address, const uint8_t *data) {
-    if (!i2c_inst[id].sw_data.initialized ||
-        data == nullptr) {
+    if (!i2c_inst[id].sw_data.initialized || data == nullptr) {
         return I2C_STATUS_ERROR;
     }
 
     Wire.beginTransmission(address);
-    Wire.write(data, TxLength);
-    Wire.endTransmission();
+    const size_t bytes_written = Wire.write(data, TxLength);
+    const uint8_t transmission_status = Wire.endTransmission();
+    if (bytes_written != TxLength || transmission_status != 0) {
+        return I2C_STATUS_ERROR;
+    }
 
     return I2C_STATUS_OK;
 }
