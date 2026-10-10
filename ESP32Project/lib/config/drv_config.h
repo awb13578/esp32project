@@ -20,4 +20,9 @@ typedef enum {
     PWM_ID_MAX,
 } pwm_id_e;
 
+typedef enum {
+    I2C_ID_A,
+    I2C_ID_MAX,
+} i2c_id_e;
+
 #endif // DRV_CONFIG_H_
