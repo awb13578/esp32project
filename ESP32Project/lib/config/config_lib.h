@@ -7,5 +7,6 @@
 
 #define ENABLE_GPIO
 #define ENABLE_ADC
+#define ENABLE_PWM
 
 #endif // CONFIG_LIB_H_
