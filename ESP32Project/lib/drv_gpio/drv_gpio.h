@@ -27,7 +27,7 @@ void drv_gpio_init(gpio_id_e id, uint8_t pin, uint8_t mode);
 void drv_gpio_set_pin(gpio_id_e id); //set chân HIGH
 void drv_gpio_clear_pin(gpio_id_e id); //clear chân LOW
 void drv_gpio_toggle_pin(gpio_id_e id); //đảo trạng thái chân
-uint8_t drv_gpio_read_pin(gpio_id_e id); //đọc trạng thái chân
+uint8_t drv_gpio_read_pin(gpio_id_e id); // trả về UINT8_MAX nếu id không hợp lệ
 
 #endif // ENABLE_GPIO
 #endif // DRV_GPIO_H_

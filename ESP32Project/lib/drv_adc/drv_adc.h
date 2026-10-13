@@ -26,7 +26,7 @@ extern adc_ctx_t adc_inst[ADC_ID_MAX]; // khai báo mảng chưa các instance c
 
 
 void drv_adc_init(adc_id_e id, uint8_t pin); // dùng để cấu hình ADC
-uint16_t drv_adc_read(adc_id_e id); // dùng để đọc giá trị ADC trả về
+uint16_t drv_adc_read(adc_id_e id); // trả về UINT16_MAX nếu id không hợp lệ
 
 
 #endif // ENABLE_ADC
