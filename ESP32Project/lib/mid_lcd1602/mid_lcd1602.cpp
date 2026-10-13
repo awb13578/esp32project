@@ -14,7 +14,7 @@ constexpr uint8_t LCD_RS_DATA = 0x01;
 bool lcd_initialized = false;
 
 lcd_status_e lcd_i2c_write(uint8_t value) {
-    return drv_i2c_send(I2C_ID_A, LCD_ADDR, &value) == I2C_STATUS_OK
+    return drv_i2c_send(I2C_ID_LCD1602, LCD_ADDR, &value) == I2C_STATUS_OK
         ? LCD_STATUS_OK
         : LCD_STATUS_ERROR;
 }
