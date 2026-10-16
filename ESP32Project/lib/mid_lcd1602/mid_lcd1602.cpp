@@ -14,16 +14,12 @@ constexpr uint8_t LCD_RS_DATA = 0x01;
 bool lcd_initialized = false;
 
 lcd_status_e lcd_i2c_write(uint8_t value) {
-    return drv_i2c_send(I2C_ID_LCD1602, LCD_ADDR, &value) == I2C_STATUS_OK
-        ? LCD_STATUS_OK
-        : LCD_STATUS_ERROR;
+    return drv_i2c_send(I2C_ID_LCD1602, LCD_ADDR, &value) == I2C_STATUS_OK ? LCD_STATUS_OK : LCD_STATUS_ERROR;
 }
 
 lcd_status_e lcd_send_nibble(uint8_t nibble, uint8_t rs_mode) {
-    const uint8_t data_en_high = static_cast<uint8_t>(
-        (nibble & 0xF0) | rs_mode | LCD_BACKLIGHT | LCD_ENABLE);
-    const uint8_t data_en_low = static_cast<uint8_t>(
-        (nibble & 0xF0) | rs_mode | LCD_BACKLIGHT);
+    const uint8_t data_en_high = static_cast<uint8_t>((nibble & 0xF0) | rs_mode | LCD_BACKLIGHT | LCD_ENABLE);
+    const uint8_t data_en_low = static_cast<uint8_t>((nibble & 0xF0) | rs_mode | LCD_BACKLIGHT);
 
     if (lcd_i2c_write(data_en_high) != LCD_STATUS_OK) {
         return LCD_STATUS_ERROR;
@@ -38,8 +34,7 @@ lcd_status_e lcd_send_nibble(uint8_t nibble, uint8_t rs_mode) {
 }
 
 lcd_status_e lcd_send_byte(uint8_t value, uint8_t rs_mode) {
-    if (lcd_send_nibble(value, rs_mode) != LCD_STATUS_OK ||
-        lcd_send_nibble(static_cast<uint8_t>(value << 4), rs_mode) != LCD_STATUS_OK) {
+    if (lcd_send_nibble(value, rs_mode) != LCD_STATUS_OK || lcd_send_nibble(static_cast<uint8_t>(value << 4), rs_mode) != LCD_STATUS_OK) {
         return LCD_STATUS_ERROR;
     }
 
