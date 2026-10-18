@@ -3,8 +3,19 @@
 
 #include "Arduino.h"
 
+#define GPIO_TEST_PIN 13
+
+#define ADC_PH_PIN 2
+
+#define PWM_MOTOR_PIN 5
+#define PWM_PUMP1_PIN 6
+#define PWM_PUMP2_PIN 7
+
+#define I2C_SDA_PIN 8
+#define I2C_SCL_PIN 9
+
 typedef enum {
-    GPIO_ID_A, //tên id gpio cần test
+    GPIO_ID_TEST, //tên id gpio cần test
     GPIO_ID_MAX,
 } gpio_id_e;
 

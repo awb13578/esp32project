@@ -1,27 +1,44 @@
 #include <Arduino.h>
-#include "drv_gpio.h"
-#include "drv_i2c.h"
-#include "mid_lcd1602.h"
 
-// put function declarations here:
-int myFunction(int, int);
+#include "app_control/app_control.h"
+#include "app_display/app_display.h"
+
+namespace {
+
+constexpr uint32_t UPDATE_INTERVAL_MS = 250;
+
+bool control_ready = false;
+bool display_ready = false;
+
+} // namespace
 
 void setup() {
-  // put your setup code here, to run once:
-  int result = myFunction(2, 3);
-  drv_i2c_init(I2C_ID_LCD1602, 21, 22); // Initialize I2C with SDA on pin 21 and SCL on pin 22
-  LCD1602_Init(); // Initialize the LCD
+    Serial.begin(115200);
+
+    control_ready = app_control_init();
+    if (!control_ready) {
+      Serial.println("ERROR: control initialization failed; pumps disabled.");
+    }
+
+    display_ready = app_display_init();
+    if (!display_ready) {
+      Serial.println("ERROR: LCD initialization failed.");
+    }
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-  LCD1602_Clear(); // Clear the LCD
-  LCD1602_SetCursor(0, 0); // Set cursor to the first row, first column
-  LCD1602_Print("Hello, World!"); // Print a message on the LCD
-  delay(1000); // Wait for 1 second
-}
+    static uint32_t last_update_ms = 0;
+    const uint32_t now = millis();
+    if (static_cast<uint32_t>(now - last_update_ms) < UPDATE_INTERVAL_MS) {
+        return;
+    }
+    last_update_ms = now;
 
-// put function definitions here:
-int myFunction(int x, int y) {
-  return x + y;
+    if (control_ready) {
+        app_control_update();
+    }
+
+    if (display_ready) {
+        app_display_update(app_control_get_ph());
+    }
 }
