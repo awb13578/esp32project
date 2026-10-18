@@ -40,6 +40,7 @@ bool motor_running = false;
 bool safe_ph_timer_active = false;
 uint8_t dosing_cycles_count = 0;
 bool pump_error_locked = false;
+app_pump_status_e pump_status = APP_PUMP_STATUS_OFF;
 float current_ph = NAN;
 
 bool is_safe_ph(float ph) {
@@ -53,6 +54,9 @@ bool elapsed(uint32_t duration_ms) {
 void stop_pumps(void) {
     drv_pwm_disable(PWM_ID_PUMP1);
     drv_pwm_disable(PWM_ID_PUMP2);
+    if (!pump_error_locked) {
+        pump_status = APP_PUMP_STATUS_OFF;
+    }
 }
 
 void set_motor(bool enabled) {
@@ -66,6 +70,7 @@ bool start_dosing(pwm_id_e pump, uint8_t duty,
         stop_pumps();
         set_motor(false);
         pump_error_locked = true;
+        pump_status = APP_PUMP_STATUS_ERROR;
         control_phase = CONTROL_PHASE_READY;
         app_control_set_status(APP_CONTROL_STATUS_PUMP_ERROR);
         Serial.println("ERROR: Max dosing cycles reached! Pump locked for safety.");
@@ -75,6 +80,11 @@ bool start_dosing(pwm_id_e pump, uint8_t duty,
     dosing_cycles_count++;
     stop_pumps();
     drv_pwm_set_duty(pump, duty);
+    if (pump == PWM_ID_PUMP1) {
+        pump_status = APP_PUMP_STATUS_AXIT_ON;
+    } else if (pump == PWM_ID_PUMP2) {
+        pump_status = APP_PUMP_STATUS_BAZO_ON;
+    }
     set_motor(true);
 
     if (!app_control_set_status(status)) {
@@ -103,6 +113,14 @@ void handle_invalid_ph(void) {
 }
 
 } // namespace
+
+app_pump_status_e app_control_get_pump_status(void) {
+    return pump_status;
+}
+
+bool app_control_is_motor_running(void) {
+    return motor_running;
+}
 
 bool app_control_set_status(app_control_status_e status) {
     if (status < APP_CONTROL_STATUS_MOTOR_ON ||
@@ -155,6 +173,7 @@ bool app_control_init(void) {
     safe_ph_timer_active = false;
     dosing_cycles_count = 0;
     pump_error_locked = false;
+    pump_status = APP_PUMP_STATUS_OFF;
 
     Serial.println(
         "WARNING: pH 4.01 calibration voltage is an estimate (3.00 V). "

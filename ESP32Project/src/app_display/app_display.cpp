@@ -11,29 +11,6 @@ bool display_initialized = false;
 bool line_cached[2] = {false, false};
 char line_cache[2][LCD_LINE_BUFFER_SIZE] = {};
 
-const char *status_text(app_control_status_e status) {
-    switch (status) {
-        case APP_CONTROL_STATUS_MOTOR_ON:
-            return "MOTOR ON";
-        case APP_CONTROL_STATUS_MOTOR_OFF:
-            return "MOTOR OFF";
-        case APP_CONTROL_STATUS_AXIT_PUMP_ON:
-            return "AXIT PUMP ON";
-        case APP_CONTROL_STATUS_AXIT_PUMP_OFF:
-            return "AXIT PUMP OFF";
-        case APP_CONTROL_STATUS_BAZO_PUMP_ON:
-            return "BAZO PUMP ON";
-        case APP_CONTROL_STATUS_BAZO_PUMP_OFF:
-            return "BAZO PUMP OFF";
-        case APP_CONTROL_STATUS_WATER_OK:
-            return "WATER OK";
-        case APP_CONTROL_STATUS_PUMP_ERROR:
-            return "PUMP ERROR/JAM";
-    }
-
-    return nullptr;
-}
-
 void make_line(char (&line)[LCD_LINE_BUFFER_SIZE], const char *text) {
     memset(line, ' ', LCD_LINE_LENGTH);
     line[LCD_LINE_LENGTH] = '\0';
@@ -90,15 +67,39 @@ bool app_display_update(float ph) {
         snprintf(ph_text, sizeof(ph_text), "pH: --");
     }
 
-    char ph_line[LCD_LINE_BUFFER_SIZE];
-    char status_line[LCD_LINE_BUFFER_SIZE];
-    const char *current_status = status_text(app_control_get_status());
-    if (current_status == nullptr) {
-        return false;
+    char raw_status[32];
+    if (!isfinite(ph)) {
+        snprintf(raw_status, sizeof(raw_status), "SENSOR ERROR");
+    } else {
+        const app_pump_status_e pump_st = app_control_get_pump_status();
+        const bool motor_on = app_control_is_motor_running();
+
+        const char *pump_str = "P:OFF     ";
+        switch (pump_st) {
+            case APP_PUMP_STATUS_AXIT_ON:
+                pump_str = "P:AXIT ON ";
+                break;
+            case APP_PUMP_STATUS_BAZO_ON:
+                pump_str = "P:BAZO ON ";
+                break;
+            case APP_PUMP_STATUS_ERROR:
+                pump_str = "P:ERROR   ";
+                break;
+            case APP_PUMP_STATUS_OFF:
+            default:
+                pump_str = "P:OFF     ";
+                break;
+        }
+
+        const char *motor_str = motor_on ? " M:ON " : " M:OFF";
+        snprintf(raw_status, sizeof(raw_status), "%s%s", pump_str, motor_str);
     }
 
+    char ph_line[LCD_LINE_BUFFER_SIZE];
+    char status_line[LCD_LINE_BUFFER_SIZE];
+
     make_line(ph_line, ph_text);
-    make_line(status_line, current_status);
+    make_line(status_line, raw_status);
 
     return write_line(0, ph_line) && write_line(1, status_line);
 }

@@ -2,6 +2,13 @@
 #define APP_CONTROL_H_
 
 typedef enum {
+    APP_PUMP_STATUS_OFF = 0,
+    APP_PUMP_STATUS_AXIT_ON,
+    APP_PUMP_STATUS_BAZO_ON,
+    APP_PUMP_STATUS_ERROR,
+} app_pump_status_e;
+
+typedef enum {
     APP_CONTROL_STATUS_MOTOR_ON = 0,
     APP_CONTROL_STATUS_MOTOR_OFF,
     APP_CONTROL_STATUS_AXIT_PUMP_ON,
@@ -14,6 +21,9 @@ typedef enum {
 
 bool app_control_set_status(app_control_status_e status);
 app_control_status_e app_control_get_status(void);
+app_pump_status_e app_control_get_pump_status(void);
+bool app_control_is_motor_running(void);
+
 bool app_control_init(void);
 bool app_control_update(void);
 float app_control_get_ph(void);
