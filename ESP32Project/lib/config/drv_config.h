@@ -9,7 +9,7 @@ typedef enum {
 } gpio_id_e;
 
 typedef enum {
-    ADC_ID_A,
+    ADC_ID_PH,
     ADC_ID_MAX,
 } adc_id_e;
 
