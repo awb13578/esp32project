@@ -27,6 +27,8 @@ const char *status_text(app_control_status_e status) {
             return "BAZO PUMP OFF";
         case APP_CONTROL_STATUS_WATER_OK:
             return "WATER OK";
+        case APP_CONTROL_STATUS_PUMP_ERROR:
+            return "PUMP ERROR/JAM";
     }
 
     return nullptr;

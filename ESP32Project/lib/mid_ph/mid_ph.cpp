@@ -9,8 +9,6 @@ constexpr float PH_ACID = 4.01f;
 
 constexpr float VOLTAGE_PH7 = 2.5f;
 
-constexpr uint16_t ADC_MAX = 4095;
-constexpr float ADC_FULL_SCALE_V = 3.3f;
 constexpr float DIVIDER_RATIO = 2.0f;
 
 constexpr float EPSILON = 1e-6f;
@@ -40,13 +38,12 @@ bool mid_ph_init(float voltage_ph_4_01) {
     return true;
 }
 
-float mid_ph_read_ph(uint16_t raw_ph) {
-    if (!initialized || raw_ph > ADC_MAX) {
+float mid_ph_read_ph(uint32_t voltage_mv) {
+    if (!initialized || voltage_mv == UINT32_MAX) {
         return NAN;
     }
 
-    const float adc_voltage =
-        static_cast<float>(raw_ph) * ADC_FULL_SCALE_V / ADC_MAX;
+    const float adc_voltage = static_cast<float>(voltage_mv) / 1000.0f;
 
     const float module_voltage = adc_voltage * DIVIDER_RATIO;
 

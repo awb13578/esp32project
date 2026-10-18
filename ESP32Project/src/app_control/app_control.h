@@ -9,6 +9,7 @@ typedef enum {
     APP_CONTROL_STATUS_BAZO_PUMP_ON,
     APP_CONTROL_STATUS_BAZO_PUMP_OFF,
     APP_CONTROL_STATUS_WATER_OK,
+    APP_CONTROL_STATUS_PUMP_ERROR,
 } app_control_status_e;
 
 bool app_control_set_status(app_control_status_e status);

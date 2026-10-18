@@ -7,8 +7,8 @@
 // Tra ve false neu gia tri khong hop le.
 bool mid_ph_init(float voltage_ph_4_01);
 
-// Gia tri ADC 12 bit sau mach phan ap 1/2.
+// Gia tri dien ap ADC (mV) sau mach phan ap 1/2.
 // Tra ve NAN neu chua init hoac dau vao khong hop le.
-float mid_ph_read_ph(uint16_t raw_ph);
+float mid_ph_read_ph(uint32_t voltage_mv);
 
 #endif // MID_PH_H_

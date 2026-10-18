@@ -10,16 +10,18 @@
 
 namespace {
 
+// Replace with the measured module output voltage in pH 4.01 buffer.
+constexpr float PH_4_01_CALIBRATION_VOLTAGE = 3.00f;
+
 constexpr uint8_t PWM_DUTY_LOW = 30;
 constexpr uint8_t PWM_DUTY_HIGH = 80;
 constexpr uint8_t PWM_DUTY_MOTOR = 100;
 constexpr uint8_t PWM_RESOLUTION = 8;
-constexpr uint32_t PWM_FREQUENCY_HZ = 5000;
+constexpr uint32_t PWM_FREQUENCY_HZ = 1000;
 constexpr uint32_t PUMP_PULSE_DURATION_MS = 500;
 constexpr uint32_t MIXING_DURATION_MS = 3000;
 constexpr uint32_t SAFE_MIXING_DURATION_MS = 3000;
-// Replace with the measured module output voltage in pH 4.01 buffer.
-constexpr float PH_4_01_CALIBRATION_VOLTAGE = 3.00f;
+constexpr uint8_t MAX_DOSING_CYCLES = 10;
 
 enum control_phase_e {
     CONTROL_PHASE_READY,
@@ -36,6 +38,8 @@ uint32_t safe_ph_started_ms = 0;
 bool control_initialized = false;
 bool motor_running = false;
 bool safe_ph_timer_active = false;
+uint8_t dosing_cycles_count = 0;
+bool pump_error_locked = false;
 float current_ph = NAN;
 
 bool is_safe_ph(float ph) {
@@ -58,6 +62,17 @@ void set_motor(bool enabled) {
 
 bool start_dosing(pwm_id_e pump, uint8_t duty,
                   app_control_status_e status) {
+    if (dosing_cycles_count >= MAX_DOSING_CYCLES) {
+        stop_pumps();
+        set_motor(false);
+        pump_error_locked = true;
+        control_phase = CONTROL_PHASE_READY;
+        app_control_set_status(APP_CONTROL_STATUS_PUMP_ERROR);
+        Serial.println("ERROR: Max dosing cycles reached! Pump locked for safety.");
+        return false;
+    }
+
+    dosing_cycles_count++;
     stop_pumps();
     drv_pwm_set_duty(pump, duty);
     set_motor(true);
@@ -91,7 +106,7 @@ void handle_invalid_ph(void) {
 
 bool app_control_set_status(app_control_status_e status) {
     if (status < APP_CONTROL_STATUS_MOTOR_ON ||
-        status > APP_CONTROL_STATUS_WATER_OK) {
+        status > APP_CONTROL_STATUS_PUMP_ERROR) {
         return false;
     }
 
@@ -138,6 +153,8 @@ bool app_control_init(void) {
     control_initialized = true;
     phase_started_ms = millis();
     safe_ph_timer_active = false;
+    dosing_cycles_count = 0;
+    pump_error_locked = false;
 
     Serial.println(
         "WARNING: pH 4.01 calibration voltage is an estimate (3.00 V). "
@@ -151,8 +168,15 @@ bool app_control_update(void) {
         return false;
     }
 
-    const uint16_t raw_ph = drv_adc_read(ADC_ID_PH);
-    current_ph = raw_ph == UINT16_MAX ? NAN : mid_ph_read_ph(raw_ph);
+    if (pump_error_locked) {
+        stop_pumps();
+        set_motor(false);
+        app_control_set_status(APP_CONTROL_STATUS_PUMP_ERROR);
+        return false;
+    }
+
+    const uint32_t voltage_mv = drv_adc_read_millivolts(ADC_ID_PH);
+    current_ph = (voltage_mv == UINT32_MAX) ? NAN : mid_ph_read_ph(voltage_mv);
     const float ph = current_ph;
 
     if (!isfinite(ph)) {
@@ -204,12 +228,16 @@ bool app_control_update(void) {
     }
 
     if (control_phase == CONTROL_PHASE_SAFE && is_safe_ph(ph)) {
+        dosing_cycles_count = 0;
+        pump_error_locked = false;
         stop_pumps();
         set_motor(false);
         return app_control_set_status(APP_CONTROL_STATUS_WATER_OK);
     }
 
     if (is_safe_ph(ph)) {
+        dosing_cycles_count = 0;
+        pump_error_locked = false;
         stop_pumps();
         if (motor_running) {
             if (safe_ph_timer_active &&
