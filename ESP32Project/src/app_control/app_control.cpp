@@ -292,3 +292,13 @@ bool app_control_update(void) {
 float app_control_get_ph(void) {
     return current_ph;
 }
+
+void app_control_stop_all(void) {
+    stop_pumps();
+    set_motor(false);
+    pump_status = APP_PUMP_STATUS_OFF;
+    motor_running = false;
+    control_phase = CONTROL_PHASE_READY;
+    dosing_cycles_count = 0;
+    pump_error_locked = false;
+}

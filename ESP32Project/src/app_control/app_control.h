@@ -27,5 +27,6 @@ bool app_control_is_motor_running(void);
 bool app_control_init(void);
 bool app_control_update(void);
 float app_control_get_ph(void);
+void app_control_stop_all(void);
 
 #endif /* APP_CONTROL_H_ */
