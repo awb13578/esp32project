@@ -7,6 +7,7 @@
 #include "drv_config.h"
 #include "drv_pwm.h"
 #include "mid_ph.h"
+#include "../app_state/app_state.h"
 
 namespace {
 
@@ -54,6 +55,8 @@ bool elapsed(uint32_t duration_ms) {
 void stop_pumps(void) {
     drv_pwm_disable(PWM_ID_PUMP_ACID);
     drv_pwm_disable(PWM_ID_PUMP_BAZO);
+    app_state.pwm_pump_acid_percent = 0;
+    app_state.pwm_pump_bazo_percent = 0;
     if (!pump_error_locked) {
         pump_status = APP_PUMP_STATUS_OFF;
     }
@@ -61,6 +64,7 @@ void stop_pumps(void) {
 
 void set_motor(bool enabled) {
     drv_pwm_set_duty(PWM_ID_MOTOR, enabled ? PWM_DUTY_MOTOR : 0);
+    app_state.pwm_motor_percent = enabled ? PWM_DUTY_MOTOR : 0;
     motor_running = enabled;
 }
 
@@ -82,8 +86,10 @@ bool start_dosing(pwm_id_e pump, uint8_t duty,
     drv_pwm_set_duty(pump, duty);
     if (pump == PWM_ID_PUMP_ACID) {
         pump_status = APP_PUMP_STATUS_AXIT_ON;
+        app_state.pwm_pump_acid_percent = duty;
     } else if (pump == PWM_ID_PUMP_BAZO) {
         pump_status = APP_PUMP_STATUS_BAZO_ON;
+        app_state.pwm_pump_bazo_percent = duty;
     }
     set_motor(true);
 
@@ -142,6 +148,14 @@ bool app_control_init(void) {
     safe_ph_timer_active = false;
     control_phase = CONTROL_PHASE_READY;
     current_ph = NAN;
+    app_state.adc_ph_raw = 0;
+    app_state.adc_ph_mv = 0;
+    app_state.voltage_ph_adc_v = NAN;
+    app_state.voltage_ph_v = NAN;
+    app_state.ph = NAN;
+    app_state.pwm_motor_percent = 0;
+    app_state.pwm_pump_acid_percent = 0;
+    app_state.pwm_pump_bazo_percent = 0;
 
     drv_adc_init(ADC_ID_PH, ADC_PH_PIN);
 
@@ -195,7 +209,14 @@ bool app_control_update(void) {
     }
 
     const uint32_t voltage_mv = drv_adc_read_millivolts(ADC_ID_PH);
+    app_state.adc_ph_raw = analogRead(ADC_PH_PIN);
+    app_state.adc_ph_mv = voltage_mv == UINT32_MAX ? 0 : voltage_mv;
+    app_state.voltage_ph_adc_v =
+        voltage_mv == UINT32_MAX ? NAN : static_cast<float>(voltage_mv) / 1000.0f;
+    app_state.voltage_ph_v =
+        voltage_mv == UINT32_MAX ? NAN : app_state.voltage_ph_adc_v * 2.0f;
     current_ph = (voltage_mv == UINT32_MAX) ? NAN : mid_ph_read_ph(voltage_mv);
+    app_state.ph = current_ph;
     const float ph = current_ph;
 
     if (!isfinite(ph)) {

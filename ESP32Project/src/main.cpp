@@ -2,26 +2,24 @@
 
 #include "app_control/app_control.h"
 #include "app_display/app_display.h"
+#include "app_state/app_state.h"
 
 void init_pin_on_off();
 
 bool update_interval_elapsed();
 
+app_state_t app_state = {};
+
 namespace {
 
 constexpr uint32_t UPDATE_INTERVAL_MS = 250;
 
-bool control_ready = false;
-bool display_ready = false;
-
-volatile int system_state = 0;
-
 // void IRAM_ATTR isr_gpio13() {
-//     system_state = 1;
+//     app_state.system_state = true;
 // }
 
 // void IRAM_ATTR isr_gpio14() {
-//     system_state = 0;
+//     app_state.system_state = false;
 // }
 
 } // namespace
@@ -31,15 +29,15 @@ void setup() {
 
     // init_pin_on_off(); // cần bật 13 để hệ thống hoạt động
     delay(3000);
-    system_state = 1; // tạm thời bỏ qua việc bật/tắt hệ thống bằng nút nhấn
+    app_state.system_state = true; // tạm thời bỏ qua việc bật/tắt hệ thống bằng nút nhấn
 
-    control_ready = app_control_init();
-    if (!control_ready) {
+    app_state.control_ready = app_control_init();
+    if (!app_state.control_ready) {
       Serial.println("ERROR: control initialization failed; pumps disabled.");
     }
 
-    display_ready = app_display_init();
-    if (!display_ready) {
+    app_state.display_ready = app_display_init();
+    if (!app_state.display_ready) {
       Serial.println("ERROR: LCD initialization failed.");
     }
 }
@@ -49,12 +47,12 @@ void loop() {
         return;
     }
 
-    if (system_state == 1) {
-        if (control_ready) {
+    if (app_state.system_state) {
+        if (app_state.control_ready) {
             app_control_update();
         }
 
-        if (display_ready) {
+        if (app_state.display_ready) {
             app_display_update(app_control_get_ph());
         }
     } else {
@@ -66,8 +64,10 @@ void init_pin_on_off() {
     pinMode(13, INPUT_PULLDOWN);
     pinMode(14, INPUT_PULLDOWN);
 
-    attachInterrupt(digitalPinToInterrupt(13), []() { system_state = 1; }, RISING);
-    attachInterrupt(digitalPinToInterrupt(14), []() { system_state = 0; }, RISING);
+    attachInterrupt(digitalPinToInterrupt(13),
+                    []() { app_state.system_state = true; }, RISING);
+    attachInterrupt(digitalPinToInterrupt(14),
+                    []() { app_state.system_state = false; }, RISING);
 }
 
 bool update_interval_elapsed() {
