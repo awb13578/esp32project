@@ -62,7 +62,10 @@ bool app_display_update(float ph) {
 
     char ph_text[LCD_LINE_BUFFER_SIZE];
     if (isfinite(ph)) {
-        snprintf(ph_text, sizeof(ph_text), "pH: %.2f", static_cast<double>(ph));
+        const float display_ph =
+            ph <= 0.0f ? 0.0f : (ph >= 14.0f ? 14.0f : ph);
+        snprintf(ph_text, sizeof(ph_text), "pH: %.2f",
+                 static_cast<double>(display_ph));
     } else {
         snprintf(ph_text, sizeof(ph_text), "pH: --");
     }

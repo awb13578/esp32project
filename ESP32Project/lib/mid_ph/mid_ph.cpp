@@ -5,7 +5,7 @@
 namespace {
 
 constexpr float PH_NEUTRAL = 7.0f;
-constexpr float PH_ACID = 3.95f;
+constexpr float PH_ACID = 4.01f;
 
 constexpr float VOLTAGE_PH7 = 2.5f;
 

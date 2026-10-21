@@ -11,7 +11,7 @@
 namespace {
 
 // Replace with the measured module output voltage in pH 4.01 buffer.
-constexpr float PH_4_01_CALIBRATION_VOLTAGE = 3.00f;
+constexpr float PH_4_01_CALIBRATION_VOLTAGE = 3.95f;
 
 constexpr uint8_t PWM_DUTY_LOW = 30;
 constexpr uint8_t PWM_DUTY_HIGH = 80;
