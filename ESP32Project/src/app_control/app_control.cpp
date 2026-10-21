@@ -52,8 +52,8 @@ bool elapsed(uint32_t duration_ms) {
 }
 
 void stop_pumps(void) {
-    drv_pwm_disable(PWM_ID_PUMP1);
-    drv_pwm_disable(PWM_ID_PUMP2);
+    drv_pwm_disable(PWM_ID_PUMP_ACID);
+    drv_pwm_disable(PWM_ID_PUMP_BAZO);
     if (!pump_error_locked) {
         pump_status = APP_PUMP_STATUS_OFF;
     }
@@ -80,9 +80,9 @@ bool start_dosing(pwm_id_e pump, uint8_t duty,
     dosing_cycles_count++;
     stop_pumps();
     drv_pwm_set_duty(pump, duty);
-    if (pump == PWM_ID_PUMP1) {
+    if (pump == PWM_ID_PUMP_ACID) {
         pump_status = APP_PUMP_STATUS_AXIT_ON;
-    } else if (pump == PWM_ID_PUMP2) {
+    } else if (pump == PWM_ID_PUMP_BAZO) {
         pump_status = APP_PUMP_STATUS_BAZO_ON;
     }
     set_motor(true);
@@ -147,14 +147,14 @@ bool app_control_init(void) {
 
     drv_pwm_init(PWM_ID_MOTOR, PWM_MOTOR_PIN, PWM_FREQUENCY_HZ,
                  PWM_RESOLUTION);
-    drv_pwm_init(PWM_ID_PUMP1, PWM_PUMP1_PIN, PWM_FREQUENCY_HZ,
+    drv_pwm_init(PWM_ID_PUMP_ACID, PWM_PUMP_ACID_PIN, PWM_FREQUENCY_HZ,
                  PWM_RESOLUTION);
-    drv_pwm_init(PWM_ID_PUMP2, PWM_PUMP2_PIN, PWM_FREQUENCY_HZ,
+    drv_pwm_init(PWM_ID_PUMP_BAZO, PWM_PUMP_BAZO_PIN, PWM_FREQUENCY_HZ,
                  PWM_RESOLUTION);
 
     if (!pwm_inst[PWM_ID_MOTOR].sw_data.initialized ||
-        !pwm_inst[PWM_ID_PUMP1].sw_data.initialized ||
-        !pwm_inst[PWM_ID_PUMP2].sw_data.initialized) {
+        !pwm_inst[PWM_ID_PUMP_ACID].sw_data.initialized ||
+        !pwm_inst[PWM_ID_PUMP_BAZO].sw_data.initialized) {
         stop_pumps();
         drv_pwm_disable(PWM_ID_MOTOR);
         return false;
@@ -281,11 +281,11 @@ bool app_control_update(void) {
     const uint8_t duty = high_speed ? PWM_DUTY_HIGH : PWM_DUTY_LOW;
 
     if (low_ph) {
-        return start_dosing(PWM_ID_PUMP2, duty,
+        return start_dosing(PWM_ID_PUMP_BAZO, duty,
                             APP_CONTROL_STATUS_BAZO_PUMP_ON);
     }
 
-    return start_dosing(PWM_ID_PUMP1, duty,
+    return start_dosing(PWM_ID_PUMP_ACID, duty,
                         APP_CONTROL_STATUS_AXIT_PUMP_ON);
 }
 

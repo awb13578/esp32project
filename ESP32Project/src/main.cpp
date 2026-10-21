@@ -16,20 +16,22 @@ bool display_ready = false;
 
 volatile int system_state = 0;
 
-void IRAM_ATTR isr_gpio13() {
-    system_state = 1;
-}
+// void IRAM_ATTR isr_gpio13() {
+//     system_state = 1;
+// }
 
-void IRAM_ATTR isr_gpio14() {
-    system_state = 0;
-}
+// void IRAM_ATTR isr_gpio14() {
+//     system_state = 0;
+// }
 
 } // namespace
 
 void setup() {
     Serial.begin(115200);
 
-    init_pin_on_off(); // cần bật 13 để hệ thống hoạt động
+    // init_pin_on_off(); // cần bật 13 để hệ thống hoạt động
+    delay(3000);
+    system_state = 1; // tạm thời bỏ qua việc bật/tắt hệ thống bằng nút nhấn
 
     control_ready = app_control_init();
     if (!control_ready) {

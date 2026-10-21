@@ -3,13 +3,13 @@
 
 #include "Arduino.h"
 
-#define GPIO_TEST_PIN 13
+#define GPIO_TEST_PIN 
 
 #define ADC_PH_PIN 2
 
 #define PWM_MOTOR_PIN 5
-#define PWM_PUMP1_PIN 6
-#define PWM_PUMP2_PIN 7
+#define PWM_PUMP_ACID_PIN 6
+#define PWM_PUMP_BAZO_PIN 7
 
 #define I2C_SDA_PIN 8
 #define I2C_SCL_PIN 9
@@ -26,8 +26,8 @@ typedef enum {
 
 typedef enum {
     PWM_ID_MOTOR,
-    PWM_ID_PUMP1,
-    PWM_ID_PUMP2,
+    PWM_ID_PUMP_ACID,
+    PWM_ID_PUMP_BAZO,
     PWM_ID_MAX,
 } pwm_id_e;
 
