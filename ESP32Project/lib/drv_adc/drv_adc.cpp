@@ -41,11 +41,13 @@ uint32_t drv_adc_read_millivolts(adc_id_e id) {
     }
 
     uint32_t sum = 0;
-    for (uint8_t i = 1; i < ADC_SAMPLE_COUNT - 1; ++i) {
+    for (uint8_t i = ADC_TRIM_COUNT;
+         i < ADC_SAMPLE_COUNT - ADC_TRIM_COUNT; ++i) {
         sum += samples[i];
     }
 
-    adc_inst[id].sw_data.voltage_mv = sum / (ADC_SAMPLE_COUNT - 2);
+    adc_inst[id].sw_data.voltage_mv =
+        sum / (ADC_SAMPLE_COUNT - 2 * ADC_TRIM_COUNT);
     return adc_inst[id].sw_data.voltage_mv;
 }
 

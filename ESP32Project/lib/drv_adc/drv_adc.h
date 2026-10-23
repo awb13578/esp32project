@@ -7,7 +7,8 @@
 #ifdef ENABLE_ADC  // chỉ bật code khi ADC được enable
 
 #define ADC_RESOLUTION 12 // set độ phân giải ADC là 12 bit
-#define ADC_SAMPLE_COUNT 10 // number of samples; min/max are discarded before averaging
+#define ADC_SAMPLE_COUNT 25 // samples per reading
+#define ADC_TRIM_COUNT 5 // discard this many low and high samples before averaging
 
 typedef struct {
     uint32_t voltage_mv;

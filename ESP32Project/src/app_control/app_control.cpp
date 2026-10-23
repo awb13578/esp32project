@@ -234,6 +234,9 @@ bool app_control_update(void) {
 
     const uint32_t measured_voltage_mv = drv_adc_read_millivolts(ADC_ID_PH);
     app_state.adc_ph_raw = analogRead(ADC_PH_PIN);
+    const bool voltage_in_ph_range =
+        measured_voltage_mv != UINT32_MAX &&
+        isfinite(mid_ph_read_ph(measured_voltage_mv));
     const uint8_t load_mask = active_load_mask();
     if (!load_state_initialized) {
         previous_load_mask = load_mask;
@@ -248,8 +251,7 @@ bool app_control_update(void) {
         static_cast<uint32_t>(millis() - load_changed_ms) < LOAD_SETTLE_TIME_MS;
     const bool pump_active = (load_mask & 0x06) != 0;
     const bool can_update_measurement =
-        measured_voltage_mv != UINT32_MAX && !pump_active &&
-        !settling_after_load_change;
+        voltage_in_ph_range && !pump_active && !settling_after_load_change;
 
     if (can_update_measurement) {
         const float measured_mv = static_cast<float>(measured_voltage_mv);
@@ -261,13 +263,18 @@ bool app_control_update(void) {
         }
     }
 
-    const bool have_valid_measurement = isfinite(filtered_voltage_mv);
+    const bool have_filtered_voltage = isfinite(filtered_voltage_mv);
+    const uint32_t filtered_measurement_mv =
+        have_filtered_voltage ? static_cast<uint32_t>(filtered_voltage_mv) : 0;
+    const bool have_valid_measurement =
+        have_filtered_voltage &&
+        isfinite(mid_ph_read_ph(filtered_measurement_mv));
     const float measured_adc_voltage_v =
         measured_voltage_mv == UINT32_MAX
             ? NAN
             : static_cast<float>(measured_voltage_mv) / 1000.0f;
     app_state.adc_ph_mv = have_valid_measurement
-                              ? static_cast<uint32_t>(filtered_voltage_mv)
+                              ? filtered_measurement_mv
                               : 0;
     app_state.voltage_ph_adc_v =
         have_valid_measurement ? filtered_voltage_mv / 1000.0f : NAN;
@@ -281,11 +288,13 @@ bool app_control_update(void) {
 
     Serial.printf(
         "pH debug | Raw ADC=%u | Measured ADC=%.3f V | ADC voltage=%.3f V | "
-        "Sensor voltage=%.3f V | Calculated pH=%.2f | Sample=%s\n",
+        "Sensor voltage=%.3f V | Filtered pH=%.2f | Sample=%s\n",
         static_cast<unsigned int>(app_state.adc_ph_raw),
         measured_adc_voltage_v, app_state.voltage_ph_adc_v,
         app_state.voltage_ph_v, ph,
-        can_update_measurement ? "filtered" : "held");
+        can_update_measurement
+            ? "filtered"
+            : (voltage_in_ph_range ? "held" : "rejected/held"));
 
     if (!have_valid_measurement || !isfinite(ph)) {
         handle_invalid_ph();

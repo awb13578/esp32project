@@ -58,11 +58,8 @@ float mid_ph_read_ph(uint32_t voltage_mv) {
         return NAN;
     }
 
-    if (calculated_ph < PH_MIN) {
-        return PH_MIN;
-    }
-    if (calculated_ph > PH_MAX) {
-        return PH_MAX;
+    if (calculated_ph < PH_MIN || calculated_ph > PH_MAX) {
+        return NAN;
     }
     return calculated_ph;
 }
