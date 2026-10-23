@@ -12,17 +12,18 @@
 namespace {
 
 // Replace with the measured module output voltage in pH 4.01 buffer.
-constexpr float PH_4_01_CALIBRATION_VOLTAGE = 3.95f;
+constexpr float PH_4_01_CALIBRATION_VOLTAGE = 3.00f;
 
 constexpr uint8_t PWM_DUTY_LOW = 30;
-constexpr uint8_t PWM_DUTY_HIGH = 80;
-constexpr uint8_t PWM_DUTY_MOTOR = 100;
+constexpr uint8_t PWM_DUTY_HIGH = 70;
+constexpr uint8_t PWM_DUTY_MOTOR = 80;
 constexpr uint8_t PWM_RESOLUTION = 8;
 constexpr uint32_t PWM_FREQUENCY_HZ = 1000;
-constexpr uint32_t PUMP_PULSE_DURATION_MS = 500;
+constexpr uint32_t PUMP_PULSE_DURATION_LOW_DUTY_MS = 300;
+constexpr uint32_t PUMP_PULSE_DURATION_HIGH_DUTY_MS = 500;
 constexpr uint32_t MIXING_DURATION_MS = 3000;
-constexpr uint32_t SAFE_MIXING_DURATION_MS = 3000;
-constexpr uint8_t MAX_DOSING_CYCLES = 10;
+constexpr uint32_t SAFE_MIXING_DURATION_MS = 5000;
+constexpr uint8_t MAX_DOSING_CYCLES = 20;
 
 enum control_phase_e {
     CONTROL_PHASE_READY,
@@ -36,6 +37,7 @@ app_control_status_e control_status = APP_CONTROL_STATUS_WATER_OK;
 control_phase_e control_phase = CONTROL_PHASE_READY;
 uint32_t phase_started_ms = 0;
 uint32_t safe_ph_started_ms = 0;
+uint32_t pump_pulse_duration_ms = PUMP_PULSE_DURATION_HIGH_DUTY_MS;
 bool control_initialized = false;
 bool motor_running = false;
 bool safe_ph_timer_active = false;
@@ -82,6 +84,9 @@ bool start_dosing(pwm_id_e pump, uint8_t duty,
     }
 
     dosing_cycles_count++;
+    pump_pulse_duration_ms =
+        duty == PWM_DUTY_LOW ? PUMP_PULSE_DURATION_LOW_DUTY_MS
+                             : PUMP_PULSE_DURATION_HIGH_DUTY_MS;
     stop_pumps();
     drv_pwm_set_duty(pump, duty);
     if (pump == PWM_ID_PUMP_ACID) {
@@ -235,7 +240,7 @@ bool app_control_update(void) {
     }
 
     if (control_phase == CONTROL_PHASE_DOSING) {
-        if (!elapsed(PUMP_PULSE_DURATION_MS)) {
+        if (!elapsed(pump_pulse_duration_ms)) {
             return true;
         }
 
@@ -298,7 +303,7 @@ bool app_control_update(void) {
     }
 
     const bool low_ph = ph < 6.0f;
-    const bool high_speed = ph < 5.5f || ph > 8.5f;
+    const bool high_speed = ph < 4.5f || ph > 9.5f;
     const uint8_t duty = high_speed ? PWM_DUTY_HIGH : PWM_DUTY_LOW;
 
     if (low_ph) {
