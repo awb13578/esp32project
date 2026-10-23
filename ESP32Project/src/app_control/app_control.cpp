@@ -13,6 +13,8 @@ namespace {
 
 // Replace with the measured module output voltage in pH 4.01 buffer.
 constexpr float PH_4_01_CALIBRATION_VOLTAGE = 3.95f;
+// Set to the measured module output voltage in pH 9.18 buffer before use.
+constexpr float PH_9_18_CALIBRATION_VOLTAGE = 0.0f;
 
 constexpr uint8_t PWM_DUTY_LOW = 30;
 constexpr uint8_t PWM_DUTY_HIGH = 80;
@@ -174,7 +176,8 @@ bool app_control_init(void) {
         return false;
     }
 
-    if (!mid_ph_init(PH_4_01_CALIBRATION_VOLTAGE)) {
+    if (!mid_ph_init(PH_4_01_CALIBRATION_VOLTAGE,
+                     PH_9_18_CALIBRATION_VOLTAGE)) {
         stop_pumps();
         drv_pwm_disable(PWM_ID_MOTOR);
         return false;
@@ -190,8 +193,8 @@ bool app_control_init(void) {
     pump_status = APP_PUMP_STATUS_OFF;
 
     Serial.println(
-        "WARNING: pH 4.01 calibration voltage is an estimate (3.00 V). "
-        "Measure and update it before operating the pumps.");
+        "WARNING: Measure and update pH 4.01 and 9.18 calibration voltages "
+        "before operating the pumps.");
 
     return app_control_set_status(APP_CONTROL_STATUS_WATER_OK);
 }

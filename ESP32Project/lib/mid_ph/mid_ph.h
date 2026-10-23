@@ -3,9 +3,9 @@
 
 #include <stdint.h>
 
-// Dien ap module tai pH 4.01, do truoc mach phan ap.
+// Dien ap module tai pH 4.01 va 9.18, do truoc mach phan ap.
 // Tra ve false neu gia tri khong hop le.
-bool mid_ph_init(float voltage_ph_4_01);
+bool mid_ph_init(float voltage_ph_4_01, float voltage_ph_9_18);
 
 // Gia tri dien ap ADC (mV) sau mach phan ap 1/2.
 // Tra ve NAN neu chua init hoac dau vao khong hop le.
