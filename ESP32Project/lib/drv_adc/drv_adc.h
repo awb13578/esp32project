@@ -7,7 +7,7 @@
 #ifdef ENABLE_ADC  // chỉ bật code khi ADC được enable
 
 #define ADC_RESOLUTION 12 // set độ phân giải ADC là 12 bit
-#define ADC_SAMPLE_COUNT 10 // số mẫu đọc để tính trung bình
+#define ADC_SAMPLE_COUNT 10 // number of samples; min/max are discarded before averaging
 
 typedef struct {
     uint32_t voltage_mv;
@@ -27,7 +27,7 @@ extern adc_ctx_t adc_inst[ADC_ID_MAX]; // khai báo mảng chưa các instance c
 
 
 void drv_adc_init(adc_id_e id, uint8_t pin); // dùng để cấu hình ADC
-uint32_t drv_adc_read_millivolts(adc_id_e id); // đọc 10 mẫu trung bình theo mV, trả về UINT32_MAX nếu id không hợp lệ
+uint32_t drv_adc_read_millivolts(adc_id_e id); // trimmed mean in mV; UINT32_MAX if id is invalid
 
 
 #endif // ENABLE_ADC

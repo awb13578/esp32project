@@ -24,13 +24,28 @@ uint32_t drv_adc_read_millivolts(adc_id_e id) {
         return UINT32_MAX;
     }
 
-    uint32_t sum = 0;
+    uint32_t samples[ADC_SAMPLE_COUNT];
     for (uint8_t i = 0; i < ADC_SAMPLE_COUNT; ++i) {
-        sum += analogReadMilliVolts(adc_inst[id].hw_cfg.pin);
+        samples[i] = analogReadMilliVolts(adc_inst[id].hw_cfg.pin);
         delay(1);
     }
 
-    adc_inst[id].sw_data.voltage_mv = sum / ADC_SAMPLE_COUNT;
+    for (uint8_t i = 1; i < ADC_SAMPLE_COUNT; ++i) {
+        const uint32_t sample = samples[i];
+        uint8_t j = i;
+        while (j > 0 && samples[j - 1] > sample) {
+            samples[j] = samples[j - 1];
+            --j;
+        }
+        samples[j] = sample;
+    }
+
+    uint32_t sum = 0;
+    for (uint8_t i = 1; i < ADC_SAMPLE_COUNT - 1; ++i) {
+        sum += samples[i];
+    }
+
+    adc_inst[id].sw_data.voltage_mv = sum / (ADC_SAMPLE_COUNT - 2);
     return adc_inst[id].sw_data.voltage_mv;
 }
 

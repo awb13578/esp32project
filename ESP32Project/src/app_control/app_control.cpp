@@ -11,8 +11,11 @@
 
 namespace {
 
-// Replace with the measured module output voltage in pH 4.01 buffer.
+// Measured module output voltages before the divider; update after recalibration.
 constexpr float PH_4_01_CALIBRATION_VOLTAGE = 3.00f;
+constexpr float PH_7_00_CALIBRATION_VOLTAGE = 2.50f;
+constexpr uint32_t LOAD_SETTLE_TIME_MS = 300;
+constexpr float PH_VOLTAGE_FILTER_ALPHA = 0.25f;
 
 constexpr uint8_t PWM_DUTY_LOW = 30;
 constexpr uint8_t PWM_DUTY_HIGH = 70;
@@ -45,6 +48,10 @@ uint8_t dosing_cycles_count = 0;
 bool pump_error_locked = false;
 app_pump_status_e pump_status = APP_PUMP_STATUS_OFF;
 float current_ph = NAN;
+float filtered_voltage_mv = NAN;
+uint8_t previous_load_mask = 0;
+uint32_t load_changed_ms = 0;
+bool load_state_initialized = false;
 
 bool is_safe_ph(float ph) {
     return ph >= 6.0f && ph <= 8.0f;
@@ -52,6 +59,12 @@ bool is_safe_ph(float ph) {
 
 bool elapsed(uint32_t duration_ms) {
     return static_cast<uint32_t>(millis() - phase_started_ms) >= duration_ms;
+}
+
+uint8_t active_load_mask(void) {
+    return static_cast<uint8_t>((motor_running ? 0x01 : 0x00) |
+                                (app_state.pwm_pump_acid_percent > 0 ? 0x02 : 0x00) |
+                                (app_state.pwm_pump_bazo_percent > 0 ? 0x04 : 0x00));
 }
 
 void stop_pumps(void) {
@@ -153,6 +166,10 @@ bool app_control_init(void) {
     safe_ph_timer_active = false;
     control_phase = CONTROL_PHASE_READY;
     current_ph = NAN;
+    filtered_voltage_mv = NAN;
+    previous_load_mask = 0;
+    load_changed_ms = millis();
+    load_state_initialized = false;
     app_state.adc_ph_raw = 0;
     app_state.adc_ph_mv = 0;
     app_state.voltage_ph_adc_v = NAN;
@@ -179,7 +196,8 @@ bool app_control_init(void) {
         return false;
     }
 
-    if (!mid_ph_init(PH_4_01_CALIBRATION_VOLTAGE)) {
+    if (!mid_ph_init(PH_4_01_CALIBRATION_VOLTAGE,
+                     PH_7_00_CALIBRATION_VOLTAGE)) {
         stop_pumps();
         drv_pwm_disable(PWM_ID_MOTOR);
         return false;
@@ -194,9 +212,10 @@ bool app_control_init(void) {
     pump_error_locked = false;
     pump_status = APP_PUMP_STATUS_OFF;
 
-    Serial.println(
-        "WARNING: pH 4.01 calibration voltage is an estimate (3.00 V). "
-        "Measure and update it before operating the pumps.");
+    Serial.printf("pH calibration: pH 4.01=%.3f V, pH 7.00=%.3f V "
+                  "(module output before divider)\n",
+                  PH_4_01_CALIBRATION_VOLTAGE,
+                  PH_7_00_CALIBRATION_VOLTAGE);
 
     return app_control_set_status(APP_CONTROL_STATUS_WATER_OK);
 }
@@ -213,18 +232,62 @@ bool app_control_update(void) {
         return false;
     }
 
-    const uint32_t voltage_mv = drv_adc_read_millivolts(ADC_ID_PH);
+    const uint32_t measured_voltage_mv = drv_adc_read_millivolts(ADC_ID_PH);
     app_state.adc_ph_raw = analogRead(ADC_PH_PIN);
-    app_state.adc_ph_mv = voltage_mv == UINT32_MAX ? 0 : voltage_mv;
+    const uint8_t load_mask = active_load_mask();
+    if (!load_state_initialized) {
+        previous_load_mask = load_mask;
+        load_changed_ms = millis() - LOAD_SETTLE_TIME_MS;
+        load_state_initialized = true;
+    } else if (load_mask != previous_load_mask) {
+        previous_load_mask = load_mask;
+        load_changed_ms = millis();
+    }
+
+    const bool settling_after_load_change =
+        static_cast<uint32_t>(millis() - load_changed_ms) < LOAD_SETTLE_TIME_MS;
+    const bool pump_active = (load_mask & 0x06) != 0;
+    const bool can_update_measurement =
+        measured_voltage_mv != UINT32_MAX && !pump_active &&
+        !settling_after_load_change;
+
+    if (can_update_measurement) {
+        const float measured_mv = static_cast<float>(measured_voltage_mv);
+        if (!isfinite(filtered_voltage_mv)) {
+            filtered_voltage_mv = measured_mv;
+        } else {
+            filtered_voltage_mv +=
+                PH_VOLTAGE_FILTER_ALPHA * (measured_mv - filtered_voltage_mv);
+        }
+    }
+
+    const bool have_valid_measurement = isfinite(filtered_voltage_mv);
+    const float measured_adc_voltage_v =
+        measured_voltage_mv == UINT32_MAX
+            ? NAN
+            : static_cast<float>(measured_voltage_mv) / 1000.0f;
+    app_state.adc_ph_mv = have_valid_measurement
+                              ? static_cast<uint32_t>(filtered_voltage_mv)
+                              : 0;
     app_state.voltage_ph_adc_v =
-        voltage_mv == UINT32_MAX ? NAN : static_cast<float>(voltage_mv) / 1000.0f;
+        have_valid_measurement ? filtered_voltage_mv / 1000.0f : NAN;
     app_state.voltage_ph_v =
-        voltage_mv == UINT32_MAX ? NAN : app_state.voltage_ph_adc_v * 2.0f;
-    current_ph = (voltage_mv == UINT32_MAX) ? NAN : mid_ph_read_ph(voltage_mv);
+        have_valid_measurement ? app_state.voltage_ph_adc_v * 2.0f : NAN;
+    if (have_valid_measurement) {
+        current_ph = mid_ph_read_ph(app_state.adc_ph_mv);
+    }
     app_state.ph = current_ph;
     const float ph = current_ph;
 
-    if (!isfinite(ph)) {
+    Serial.printf(
+        "pH debug | Raw ADC=%u | Measured ADC=%.3f V | ADC voltage=%.3f V | "
+        "Sensor voltage=%.3f V | Calculated pH=%.2f | Sample=%s\n",
+        static_cast<unsigned int>(app_state.adc_ph_raw),
+        measured_adc_voltage_v, app_state.voltage_ph_adc_v,
+        app_state.voltage_ph_v, ph,
+        can_update_measurement ? "filtered" : "held");
+
+    if (!have_valid_measurement || !isfinite(ph)) {
         handle_invalid_ph();
         safe_ph_timer_active = false;
         return false;

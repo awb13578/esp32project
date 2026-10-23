@@ -4,35 +4,39 @@
 
 namespace {
 
-constexpr float PH_NEUTRAL = 7.0f;
 constexpr float PH_ACID = 4.01f;
-
-constexpr float VOLTAGE_PH7 = 2.5f;
+constexpr float PH_NEUTRAL = 7.0f;
+constexpr float PH_MIN = 0.0f;
+constexpr float PH_MAX = 14.0f;
 
 constexpr float DIVIDER_RATIO = 2.0f;
 
 constexpr float EPSILON = 1e-6f;
 
-float slope = 0.0f;
+float ph_per_volt = 0.0f;
+float voltage_at_ph7 = 0.0f;
 bool initialized = false;
 
 } // namespace
 
-bool mid_ph_init(float voltage_ph_4_01) {
+bool mid_ph_init(float voltage_ph_4_01, float voltage_ph_7_00) {
     initialized = false;
 
-    if (!isfinite(voltage_ph_4_01) ||
-        voltage_ph_4_01 < 0.0f) {
+    if (!isfinite(voltage_ph_4_01) || !isfinite(voltage_ph_7_00) ||
+        voltage_ph_4_01 < 0.0f || voltage_ph_7_00 < 0.0f) {
         return false;
     }
 
-    const float voltage_diff = voltage_ph_4_01 - VOLTAGE_PH7;
-
+    const float voltage_diff = voltage_ph_7_00 - voltage_ph_4_01;
     if (fabsf(voltage_diff) <= EPSILON) {
         return false;
     }
 
-    slope = voltage_diff / (PH_ACID - PH_NEUTRAL);
+    ph_per_volt = (PH_NEUTRAL - PH_ACID) / voltage_diff;
+    voltage_at_ph7 = voltage_ph_7_00;
+    if (!isfinite(ph_per_volt)) {
+        return false;
+    }
     initialized = true;
 
     return true;
@@ -47,8 +51,18 @@ float mid_ph_read_ph(uint32_t voltage_mv) {
 
     const float module_voltage = adc_voltage * DIVIDER_RATIO;
 
-    const float ph =
-        PH_NEUTRAL + (module_voltage - VOLTAGE_PH7) / slope;
+    const float calculated_ph =
+        PH_NEUTRAL + (module_voltage - voltage_at_ph7) * ph_per_volt;
 
-    return isfinite(ph) ? ph : NAN;
+    if (!isfinite(calculated_ph)) {
+        return NAN;
+    }
+
+    if (calculated_ph < PH_MIN) {
+        return PH_MIN;
+    }
+    if (calculated_ph > PH_MAX) {
+        return PH_MAX;
+    }
+    return calculated_ph;
 }
