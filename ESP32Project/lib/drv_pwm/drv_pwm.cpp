@@ -24,6 +24,10 @@ void drv_pwm_init(pwm_id_e id, uint8_t pin, uint32_t frequency,
     pwm_inst[id].sw_data.initialized = false;
     pwm_inst[id].sw_data.duty_cycle = 0;
 
+    if (frequency == 0 || resolution == 0 || resolution >= 32) {
+        return;
+    }
+
 #if ESP_ARDUINO_VERSION_MAJOR >= 3
     if (!ledcAttach(pin, frequency, resolution)) {
         return;
@@ -51,8 +55,8 @@ void drv_pwm_set_duty(pwm_id_e id, uint8_t percent) {
 
     const uint32_t max_duty =
         (static_cast<uint32_t>(1) << pwm_inst[id].hw_cfg.resolution) - 1;
-    const uint32_t duty =
-        (static_cast<uint32_t>(duty_percent) * max_duty) / 100u;
+    const uint32_t duty = static_cast<uint32_t>(
+        (static_cast<uint64_t>(duty_percent) * max_duty) / 100u);
 
     if (duty > max_duty) {
         return;

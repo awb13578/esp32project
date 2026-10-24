@@ -24,6 +24,12 @@ constexpr uint8_t PWM_RESOLUTION = 8;
 constexpr uint32_t PWM_FREQUENCY_HZ = 1000;
 constexpr uint32_t PUMP_PULSE_DURATION_LOW_DUTY_MS = 300;
 constexpr uint32_t PUMP_PULSE_DURATION_HIGH_DUTY_MS = 500;
+// The control loop runs every 200 ms; allow one full pump pulse, load settling,
+// and one control cycle for a fresh stable ADC sample.
+constexpr uint32_t CONTROL_UPDATE_INTERVAL_MS = 200;
+constexpr uint32_t PH_MEASUREMENT_HOLD_TIMEOUT_MS =
+    PUMP_PULSE_DURATION_HIGH_DUTY_MS + LOAD_SETTLE_TIME_MS +
+    CONTROL_UPDATE_INTERVAL_MS;
 constexpr uint32_t MIXING_DURATION_MS = 3000;
 constexpr uint32_t SAFE_MIXING_DURATION_MS = 5000;
 constexpr uint8_t MAX_DOSING_CYCLES = 20;
@@ -49,6 +55,8 @@ bool pump_error_locked = false;
 app_pump_status_e pump_status = APP_PUMP_STATUS_OFF;
 float current_ph = NAN;
 float filtered_voltage_mv = NAN;
+uint32_t last_valid_ph_measurement_ms = 0;
+bool have_valid_ph_measurement = false;
 uint8_t previous_load_mask = 0;
 uint32_t load_changed_ms = 0;
 bool load_state_initialized = false;
@@ -167,6 +175,8 @@ bool app_control_init(void) {
     control_phase = CONTROL_PHASE_READY;
     current_ph = NAN;
     filtered_voltage_mv = NAN;
+    last_valid_ph_measurement_ms = 0;
+    have_valid_ph_measurement = false;
     previous_load_mask = 0;
     load_changed_ms = millis();
     load_state_initialized = false;
@@ -234,9 +244,12 @@ bool app_control_update(void) {
 
     const uint32_t measured_voltage_mv = drv_adc_read_millivolts(ADC_ID_PH);
     app_state.adc_ph_raw = analogRead(ADC_PH_PIN);
-    const bool voltage_in_ph_range =
-        measured_voltage_mv != UINT32_MAX &&
-        isfinite(mid_ph_read_ph(measured_voltage_mv));
+    const uint32_t measurement_time_ms = millis();
+    const float measured_ph =
+        measured_voltage_mv == UINT32_MAX
+            ? NAN
+            : mid_ph_read_ph(measured_voltage_mv);
+    const bool current_measurement_valid = isfinite(measured_ph);
     const uint8_t load_mask = active_load_mask();
     if (!load_state_initialized) {
         previous_load_mask = load_mask;
@@ -251,7 +264,7 @@ bool app_control_update(void) {
         static_cast<uint32_t>(millis() - load_changed_ms) < LOAD_SETTLE_TIME_MS;
     const bool pump_active = (load_mask & 0x06) != 0;
     const bool can_update_measurement =
-        voltage_in_ph_range && !pump_active && !settling_after_load_change;
+        current_measurement_valid && !pump_active && !settling_after_load_change;
 
     if (can_update_measurement) {
         const float measured_mv = static_cast<float>(measured_voltage_mv);
@@ -261,13 +274,25 @@ bool app_control_update(void) {
             filtered_voltage_mv +=
                 PH_VOLTAGE_FILTER_ALPHA * (measured_mv - filtered_voltage_mv);
         }
+        last_valid_ph_measurement_ms = measurement_time_ms;
+        have_valid_ph_measurement = true;
+    }
+
+    const bool have_recent_measurement =
+        have_valid_ph_measurement &&
+        static_cast<uint32_t>(measurement_time_ms -
+                              last_valid_ph_measurement_ms) <=
+            PH_MEASUREMENT_HOLD_TIMEOUT_MS;
+    if (!have_recent_measurement) {
+        have_valid_ph_measurement = false;
+        filtered_voltage_mv = NAN;
     }
 
     const bool have_filtered_voltage = isfinite(filtered_voltage_mv);
     const uint32_t filtered_measurement_mv =
         have_filtered_voltage ? static_cast<uint32_t>(filtered_voltage_mv) : 0;
     const bool have_valid_measurement =
-        have_filtered_voltage &&
+        have_recent_measurement && have_filtered_voltage &&
         isfinite(mid_ph_read_ph(filtered_measurement_mv));
     const float measured_adc_voltage_v =
         measured_voltage_mv == UINT32_MAX
@@ -282,6 +307,8 @@ bool app_control_update(void) {
         have_valid_measurement ? app_state.voltage_ph_adc_v * 2.0f : NAN;
     if (have_valid_measurement) {
         current_ph = mid_ph_read_ph(app_state.adc_ph_mv);
+    } else {
+        current_ph = NAN;
     }
     app_state.ph = current_ph;
     const float ph = current_ph;
@@ -293,8 +320,8 @@ bool app_control_update(void) {
         measured_adc_voltage_v, app_state.voltage_ph_adc_v,
         app_state.voltage_ph_v, ph,
         can_update_measurement
-            ? "filtered"
-            : (voltage_in_ph_range ? "held" : "rejected/held"));
+            ? "fresh"
+            : (have_recent_measurement ? "held" : "invalid"));
 
     if (!have_valid_measurement || !isfinite(ph)) {
         handle_invalid_ph();
@@ -399,4 +426,5 @@ void app_control_stop_all(void) {
     control_phase = CONTROL_PHASE_READY;
     dosing_cycles_count = 0;
     pump_error_locked = false;
+    app_control_set_status(APP_CONTROL_STATUS_MOTOR_OFF);
 }

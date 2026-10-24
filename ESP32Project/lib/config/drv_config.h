@@ -3,8 +3,6 @@
 
 #include "Arduino.h"
 
-#define GPIO_TEST_PIN 
-
 #define ADC_PH_PIN 2
 
 #define PWM_MOTOR_PIN 5
