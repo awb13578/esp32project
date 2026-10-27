@@ -13,6 +13,7 @@ typedef struct {
     float voltage_ph_adc_v;    // Voltage at the ESP32 ADC pin.
     float voltage_ph_v;        // Sensor voltage reconstructed before divider.
     float ph;
+    bool ph_updated;
 
     uint8_t pwm_motor_percent;
     uint8_t pwm_pump_acid_percent;

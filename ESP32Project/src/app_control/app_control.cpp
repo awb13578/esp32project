@@ -16,31 +16,26 @@ constexpr float PH_4_01_CALIBRATION_VOLTAGE = 3.00f;
 
 constexpr uint8_t PWM_DUTY_LOW = 30;
 constexpr uint8_t PWM_DUTY_HIGH = 70;
-constexpr uint8_t PWM_DUTY_MOTOR = 80;
+constexpr uint8_t PWM_DUTY_MOTOR = 50;
 constexpr uint8_t PWM_RESOLUTION = 8;
 constexpr uint32_t PWM_FREQUENCY_HZ = 1000;
 constexpr uint32_t PUMP_PULSE_DURATION_LOW_DUTY_MS = 300;
 constexpr uint32_t PUMP_PULSE_DURATION_HIGH_DUTY_MS = 500;
-constexpr uint32_t MIXING_DURATION_MS = 3000;
-constexpr uint32_t SAFE_MIXING_DURATION_MS = 5000;
+constexpr uint32_t MIXING_DURATION_MS = 5000;
 constexpr uint8_t MAX_DOSING_CYCLES = 20;
 
 enum control_phase_e {
     CONTROL_PHASE_READY,
     CONTROL_PHASE_DOSING,
     CONTROL_PHASE_WAIT_MIXING,
-    CONTROL_PHASE_CONFIRMING_SAFE,
-    CONTROL_PHASE_SAFE,
 };
 
 app_control_status_e control_status = APP_CONTROL_STATUS_WATER_OK;
 control_phase_e control_phase = CONTROL_PHASE_READY;
 uint32_t phase_started_ms = 0;
-uint32_t safe_ph_started_ms = 0;
 uint32_t pump_pulse_duration_ms = PUMP_PULSE_DURATION_HIGH_DUTY_MS;
 bool control_initialized = false;
 bool motor_running = false;
-bool safe_ph_timer_active = false;
 uint8_t dosing_cycles_count = 0;
 bool pump_error_locked = false;
 app_pump_status_e pump_status = APP_PUMP_STATUS_OFF;
@@ -52,6 +47,12 @@ bool is_safe_ph(float ph) {
 
 bool elapsed(uint32_t duration_ms) {
     return static_cast<uint32_t>(millis() - phase_started_ms) >= duration_ms;
+}
+
+bool outputs_stopped(void) {
+    return !motor_running && app_state.pwm_motor_percent == 0 &&
+           app_state.pwm_pump_acid_percent == 0 &&
+           app_state.pwm_pump_bazo_percent == 0;
 }
 
 void stop_pumps(void) {
@@ -96,7 +97,6 @@ bool start_dosing(pwm_id_e pump, uint8_t duty,
         pump_status = APP_PUMP_STATUS_BAZO_ON;
         app_state.pwm_pump_bazo_percent = duty;
     }
-    set_motor(true);
 
     if (!app_control_set_status(status)) {
         stop_pumps();
@@ -150,9 +150,9 @@ app_control_status_e app_control_get_status(void) {
 bool app_control_init(void) {
     control_initialized = false;
     motor_running = false;
-    safe_ph_timer_active = false;
     control_phase = CONTROL_PHASE_READY;
     current_ph = NAN;
+    app_state.ph_updated = false;
     app_state.adc_ph_raw = 0;
     app_state.adc_ph_mv = 0;
     app_state.voltage_ph_adc_v = NAN;
@@ -189,7 +189,6 @@ bool app_control_init(void) {
     set_motor(false);
     control_initialized = true;
     phase_started_ms = millis();
-    safe_ph_timer_active = false;
     dosing_cycles_count = 0;
     pump_error_locked = false;
     pump_status = APP_PUMP_STATUS_OFF;
@@ -202,6 +201,8 @@ bool app_control_init(void) {
 }
 
 bool app_control_update(void) {
+    app_state.ph_updated = false;
+
     if (!control_initialized) {
         return false;
     }
@@ -210,6 +211,31 @@ bool app_control_update(void) {
         stop_pumps();
         set_motor(false);
         app_control_set_status(APP_CONTROL_STATUS_PUMP_ERROR);
+        return false;
+    }
+
+    if (control_phase == CONTROL_PHASE_DOSING) {
+        if (!elapsed(pump_pulse_duration_ms)) {
+            return true;
+        }
+
+        return begin_mixing();
+    }
+
+    if (control_phase == CONTROL_PHASE_WAIT_MIXING) {
+        if (!elapsed(MIXING_DURATION_MS)) {
+            return true;
+        }
+
+        set_motor(false);
+        control_phase = CONTROL_PHASE_READY;
+        phase_started_ms = millis();
+        return true;
+    }
+
+    stop_pumps();
+    set_motor(false);
+    if (!outputs_stopped()) {
         return false;
     }
 
@@ -222,88 +248,21 @@ bool app_control_update(void) {
         voltage_mv == UINT32_MAX ? NAN : app_state.voltage_ph_adc_v * 2.0f;
     current_ph = (voltage_mv == UINT32_MAX) ? NAN : mid_ph_read_ph(voltage_mv);
     app_state.ph = current_ph;
+    app_state.ph_updated = true;
     const float ph = current_ph;
 
     if (!isfinite(ph)) {
         handle_invalid_ph();
-        safe_ph_timer_active = false;
         return false;
-    }
-
-    if (motor_running && is_safe_ph(ph)) {
-        if (!safe_ph_timer_active) {
-            safe_ph_started_ms = millis();
-            safe_ph_timer_active = true;
-        }
-    } else {
-        safe_ph_timer_active = false;
-    }
-
-    if (control_phase == CONTROL_PHASE_DOSING) {
-        if (!elapsed(pump_pulse_duration_ms)) {
-            return true;
-        }
-
-        if (!begin_mixing()) {
-            return false;
-        }
-        return true;
-    }
-
-    if (control_phase == CONTROL_PHASE_WAIT_MIXING) {
-        if (!elapsed(MIXING_DURATION_MS)) {
-            return true;
-        }
-
-        control_phase = CONTROL_PHASE_READY;
-    }
-
-    if (control_phase == CONTROL_PHASE_CONFIRMING_SAFE) {
-        if (!is_safe_ph(ph)) {
-            control_phase = CONTROL_PHASE_READY;
-        } else if (!safe_ph_timer_active ||
-                   static_cast<uint32_t>(millis() - safe_ph_started_ms) <
-                       SAFE_MIXING_DURATION_MS) {
-            return true;
-        } else {
-            set_motor(false);
-            control_phase = CONTROL_PHASE_SAFE;
-            return app_control_set_status(APP_CONTROL_STATUS_WATER_OK);
-        }
-    }
-
-    if (control_phase == CONTROL_PHASE_SAFE && is_safe_ph(ph)) {
-        dosing_cycles_count = 0;
-        pump_error_locked = false;
-        stop_pumps();
-        set_motor(false);
-        return app_control_set_status(APP_CONTROL_STATUS_WATER_OK);
     }
 
     if (is_safe_ph(ph)) {
         dosing_cycles_count = 0;
-        pump_error_locked = false;
-        stop_pumps();
-        if (motor_running) {
-            if (safe_ph_timer_active &&
-                static_cast<uint32_t>(millis() - safe_ph_started_ms) >=
-                    SAFE_MIXING_DURATION_MS) {
-                set_motor(false);
-                control_phase = CONTROL_PHASE_SAFE;
-                return app_control_set_status(APP_CONTROL_STATUS_WATER_OK);
-            }
-
-            set_motor(true);
-            control_phase = CONTROL_PHASE_CONFIRMING_SAFE;
-            return app_control_set_status(APP_CONTROL_STATUS_MOTOR_ON);
-        }
-
-        control_phase = CONTROL_PHASE_SAFE;
         return app_control_set_status(APP_CONTROL_STATUS_WATER_OK);
     }
 
     const bool low_ph = ph < 6.0f;
-    const bool high_speed = ph < 4.5f || ph > 9.5f;
+    const bool high_speed = ph < 4.0f || ph > 10.0f;
     const uint8_t duty = high_speed ? PWM_DUTY_HIGH : PWM_DUTY_LOW;
 
     if (low_ph) {

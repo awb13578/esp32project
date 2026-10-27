@@ -1,7 +1,5 @@
 #include "app_display.h"
 
-#include "../app_control/app_control.h"
-
 namespace {
 
 constexpr size_t LCD_LINE_LENGTH = 16;
@@ -70,39 +68,18 @@ bool app_display_update(float ph) {
         snprintf(ph_text, sizeof(ph_text), "pH: --");
     }
 
-    char raw_status[32];
-    if (!isfinite(ph)) {
-        snprintf(raw_status, sizeof(raw_status), "SENSOR ERROR");
-    } else {
-        const app_pump_status_e pump_st = app_control_get_pump_status();
-        const bool motor_on = app_control_is_motor_running();
+    char ph_line[LCD_LINE_BUFFER_SIZE];
+    make_line(ph_line, ph_text);
 
-        const char *pump_str = "P:OFF     ";
-        switch (pump_st) {
-            case APP_PUMP_STATUS_AXIT_ON:
-                pump_str = "P:AXIT ON ";
-                break;
-            case APP_PUMP_STATUS_BAZO_ON:
-                pump_str = "P:BAZO ON ";
-                break;
-            case APP_PUMP_STATUS_ERROR:
-                pump_str = "P:ERROR   ";
-                break;
-            case APP_PUMP_STATUS_OFF:
-            default:
-                pump_str = "P:OFF     ";
-                break;
-        }
-
-        const char *motor_str = motor_on ? " M:ON " : " M:OFF";
-        snprintf(raw_status, sizeof(raw_status), "%s%s", pump_str, motor_str);
+    if (!write_line(0, ph_line)) {
+        return false;
     }
 
-    char ph_line[LCD_LINE_BUFFER_SIZE];
-    char status_line[LCD_LINE_BUFFER_SIZE];
+    if (isfinite(ph) && ph >= 6.0f && ph <= 8.0f) {
+        char status_line[LCD_LINE_BUFFER_SIZE];
+        make_line(status_line, "WATER OK");
+        return write_line(1, status_line);
+    }
 
-    make_line(ph_line, ph_text);
-    make_line(status_line, raw_status);
-
-    return write_line(0, ph_line) && write_line(1, status_line);
+    return true;
 }

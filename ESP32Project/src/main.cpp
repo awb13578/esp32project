@@ -52,7 +52,7 @@ void loop() {
             app_control_update();
         }
 
-        if (app_state.display_ready) {
+        if (app_state.display_ready && app_state.ph_updated) {
             app_display_update(app_control_get_ph());
         }
     } else {
@@ -64,10 +64,8 @@ void init_pin_on_off() {
     pinMode(13, INPUT_PULLDOWN);
     pinMode(14, INPUT_PULLDOWN);
 
-    attachInterrupt(digitalPinToInterrupt(13),
-                    []() { app_state.system_state = true; }, RISING);
-    attachInterrupt(digitalPinToInterrupt(14),
-                    []() { app_state.system_state = false; }, RISING);
+    attachInterrupt(digitalPinToInterrupt(13), []() { app_state.system_state = true; }, RISING);
+    attachInterrupt(digitalPinToInterrupt(14), []() { app_state.system_state = false; }, RISING);
 }
 
 bool update_interval_elapsed() {
