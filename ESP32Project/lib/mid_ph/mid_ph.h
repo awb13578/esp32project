@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-// Khoi tao noi suy tu ba diem hieu chuan pH 4.01, 7.00 va 8.87.
+// Khoi tao noi suy tu bon diem hieu chuan pH duoc cau hinh trong mid_ph.cpp.
 bool mid_ph_init(void);
 
 // Chuyen dien ap ADC (mV) thanh dien ap module truoc mach phan ap.
