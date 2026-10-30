@@ -12,7 +12,7 @@ app_state_t app_state = {};
 
 namespace {
 
-constexpr uint32_t UPDATE_INTERVAL_MS = 200;
+constexpr uint32_t UPDATE_INTERVAL_MS = 500;
 
 // void IRAM_ATTR isr_gpio13() {
 //     app_state.system_state = true;

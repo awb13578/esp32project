@@ -11,17 +11,15 @@
 
 namespace {
 
-// Replace with the measured module output voltage in pH 4.01 buffer.
-constexpr float PH_4_01_CALIBRATION_VOLTAGE = 3.00f;
-
-constexpr uint8_t PWM_DUTY_LOW = 30;
-constexpr uint8_t PWM_DUTY_HIGH = 70;
+constexpr uint8_t PWM_DUTY_LOW = 50;
+constexpr uint8_t PWM_DUTY_HIGH = 80;
 constexpr uint8_t PWM_DUTY_MOTOR = 50;
 constexpr uint8_t PWM_RESOLUTION = 8;
 constexpr uint32_t PWM_FREQUENCY_HZ = 1000;
-constexpr uint32_t PUMP_PULSE_DURATION_LOW_DUTY_MS = 300;
-constexpr uint32_t PUMP_PULSE_DURATION_HIGH_DUTY_MS = 500;
+constexpr uint32_t PUMP_PULSE_DURATION_LOW_DUTY_MS = 1000;
+constexpr uint32_t PUMP_PULSE_DURATION_HIGH_DUTY_MS = 2000;
 constexpr uint32_t MIXING_DURATION_MS = 5000;
+constexpr uint32_t ADC_SETTLING_DELAY_MS = 2000;
 constexpr uint8_t MAX_DOSING_CYCLES = 20;
 
 enum control_phase_e {
@@ -33,6 +31,8 @@ enum control_phase_e {
 app_control_status_e control_status = APP_CONTROL_STATUS_WATER_OK;
 control_phase_e control_phase = CONTROL_PHASE_READY;
 uint32_t phase_started_ms = 0;
+uint32_t outputs_stopped_at_ms = 0;
+bool outputs_stopped_time_valid = false;
 uint32_t pump_pulse_duration_ms = PUMP_PULSE_DURATION_HIGH_DUTY_MS;
 bool control_initialized = false;
 bool motor_running = false;
@@ -55,6 +55,12 @@ bool outputs_stopped(void) {
            app_state.pwm_pump_bazo_percent == 0;
 }
 
+bool adc_settling_elapsed(void) {
+    return outputs_stopped_time_valid &&
+           static_cast<uint32_t>(millis() - outputs_stopped_at_ms) >=
+               ADC_SETTLING_DELAY_MS;
+}
+
 void stop_pumps(void) {
     drv_pwm_disable(PWM_ID_PUMP_ACID);
     drv_pwm_disable(PWM_ID_PUMP_BAZO);
@@ -66,9 +72,17 @@ void stop_pumps(void) {
 }
 
 void set_motor(bool enabled) {
+    const bool was_running =
+        motor_running || app_state.pwm_motor_percent != 0;
     drv_pwm_set_duty(PWM_ID_MOTOR, enabled ? PWM_DUTY_MOTOR : 0);
     app_state.pwm_motor_percent = enabled ? PWM_DUTY_MOTOR : 0;
     motor_running = enabled;
+    if (!enabled && was_running &&
+        app_state.pwm_pump_acid_percent == 0 &&
+        app_state.pwm_pump_bazo_percent == 0) {
+        outputs_stopped_at_ms = millis();
+        outputs_stopped_time_valid = true;
+    }
 }
 
 bool start_dosing(pwm_id_e pump, uint8_t duty,
@@ -179,7 +193,7 @@ bool app_control_init(void) {
         return false;
     }
 
-    if (!mid_ph_init(PH_4_01_CALIBRATION_VOLTAGE)) {
+    if (!mid_ph_init()) {
         stop_pumps();
         drv_pwm_disable(PWM_ID_MOTOR);
         return false;
@@ -187,6 +201,8 @@ bool app_control_init(void) {
 
     stop_pumps();
     set_motor(false);
+    outputs_stopped_at_ms = millis();
+    outputs_stopped_time_valid = true;
     control_initialized = true;
     phase_started_ms = millis();
     dosing_cycles_count = 0;
@@ -194,7 +210,7 @@ bool app_control_init(void) {
     pump_status = APP_PUMP_STATUS_OFF;
 
     Serial.println(
-        "WARNING: pH 4.01 calibration voltage is an estimate (3.00 V). "
+        "WARNING: pH 4.01 calibration voltage is an estimate. "
         "Measure and update it before operating the pumps.");
 
     return app_control_set_status(APP_CONTROL_STATUS_WATER_OK);
@@ -238,17 +254,23 @@ bool app_control_update(void) {
     if (!outputs_stopped()) {
         return false;
     }
+    if (!adc_settling_elapsed()) {
+        return true;
+    }
 
     const uint32_t voltage_mv = drv_adc_read_millivolts(ADC_ID_PH);
     app_state.adc_ph_raw = analogRead(ADC_PH_PIN);
     app_state.adc_ph_mv = voltage_mv == UINT32_MAX ? 0 : voltage_mv;
     app_state.voltage_ph_adc_v =
         voltage_mv == UINT32_MAX ? NAN : static_cast<float>(voltage_mv) / 1000.0f;
-    app_state.voltage_ph_v =
-        voltage_mv == UINT32_MAX ? NAN : app_state.voltage_ph_adc_v * 2.0f;
+    app_state.voltage_ph_v = mid_ph_get_module_voltage(voltage_mv);
     current_ph = (voltage_mv == UINT32_MAX) ? NAN : mid_ph_read_ph(voltage_mv);
     app_state.ph = current_ph;
     app_state.ph_updated = true;
+    Serial.printf("ADC PH raw=%u, pin=%lu mV, Po=%.3f V\n",
+                  static_cast<unsigned int>(app_state.adc_ph_raw),
+                  static_cast<unsigned long>(app_state.adc_ph_mv),
+                  static_cast<double>(app_state.voltage_ph_v));
     const float ph = current_ph;
 
     if (!isfinite(ph)) {
@@ -279,8 +301,13 @@ float app_control_get_ph(void) {
 }
 
 void app_control_stop_all(void) {
+    const bool outputs_were_running = !outputs_stopped();
     stop_pumps();
     set_motor(false);
+    if (outputs_were_running && outputs_stopped()) {
+        outputs_stopped_at_ms = millis();
+        outputs_stopped_time_valid = true;
+    }
     pump_status = APP_PUMP_STATUS_OFF;
     motor_running = false;
     control_phase = CONTROL_PHASE_READY;

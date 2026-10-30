@@ -75,11 +75,14 @@ bool app_display_update(float ph) {
         return false;
     }
 
+    char status_text[LCD_LINE_BUFFER_SIZE];
     if (isfinite(ph) && ph >= 6.0f && ph <= 8.0f) {
-        char status_line[LCD_LINE_BUFFER_SIZE];
-        make_line(status_line, "WATER OK");
-        return write_line(1, status_line);
+        snprintf(status_text, sizeof(status_text), "WATER OK");
+    } else {
+        status_text[0] = '\0';
     }
 
-    return true;
+    char status_line[LCD_LINE_BUFFER_SIZE];
+    make_line(status_line, status_text);
+    return write_line(1, status_line);
 }

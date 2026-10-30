@@ -17,6 +17,7 @@ void drv_adc_init(adc_id_e id, uint8_t pin) {
     adc_inst[id].hw_cfg.pin = pin;
     adc_inst[id].sw_data.voltage_mv = 0;
     analogReadResolution(ADC_RESOLUTION); // set độ phân giải ADC
+    analogSetPinAttenuation(pin, ADC_11db);
 }
 
 uint32_t drv_adc_read_millivolts(adc_id_e id) {
