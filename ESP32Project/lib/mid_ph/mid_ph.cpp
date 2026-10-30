@@ -6,13 +6,13 @@
 
 namespace {
 
-constexpr float PH_NEUTRAL = 7.0f;
-constexpr float PH_ACID = 4.01f;
-constexpr float PH_BASE = 8.87f;
+constexpr float PH_NEUTRAL = 6.8f;
+constexpr float PH_ACID = 1.85f;
+constexpr float PH_BASE = 8.29f;
 
-constexpr float VOLTAGE_PH_ACID = 2.9f;
-constexpr float VOLTAGE_PH7 = 2.5f;
-constexpr float VOLTAGE_PH_BASE = 2.27f;
+constexpr float VOLTAGE_PH_ACID = 3.37f;
+constexpr float VOLTAGE_PH7 = 2.67f;
+constexpr float VOLTAGE_PH_BASE = 2.3f;
 constexpr float ADC_DIVIDER_RATIO = 2.0f;
 
 constexpr float EPSILON = 1e-6f;
